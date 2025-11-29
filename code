@@ -1,0 +1,64 @@
+-- What is the oldest business on each continent?
+WITH continents AS
+(
+	SELECT 
+		c.continent as continent,
+		c.country as country,
+		b.business as business,
+		b.year_founded as year_founded,
+		RANK() OVER (PARTITION BY c.continent ORDER BY b.year_founded ASC) as rank
+	FROM countries as c
+	JOIN businesses as b
+	ON c.country_code = b.country_code
+)
+SELECT 
+	continent,
+	country,
+	business,
+	year_founded
+FROM continents
+WHERE rank = 1;
+
+-- How many countries per continent lack data on the oldest businesses
+-- Does including the `new_businesses` data change this?
+WITH combined_businesses AS (
+  SELECT country_code FROM businesses
+  UNION
+  SELECT country_code FROM new_businesses
+),
+missing_data AS (
+  SELECT
+    c.continent,
+    c.country
+  FROM countries c
+  LEFT JOIN combined_businesses cb
+    ON c.country_code = cb.country_code
+  WHERE cb.country_code IS NULL
+)
+SELECT
+  continent,
+  COUNT(country) AS countries_without_businesses
+FROM missing_data
+GROUP BY continent
+ORDER BY continent;
+
+-- Which business categories are best suited to last over the course of centuries?
+WITH ranked_businesses AS (
+  SELECT 
+    c.continent,
+    cat.category,
+    b.year_founded,
+    ROW_NUMBER() OVER (
+      PARTITION BY c.continent, cat.category 
+      ORDER BY b.year_founded ASC
+    ) AS row_num
+  FROM businesses b
+  INNER JOIN categories cat ON b.category_code = cat.category_code
+  INNER JOIN countries c ON b.country_code = c.country_code
+)
+SELECT 
+  continent,
+  category,
+  year_founded
+FROM ranked_businesses
+WHERE row_num = 1;
